@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/textproto"
 	"net/url"
@@ -695,7 +694,9 @@ func (self *Client) Describe() (streams []sdp.Media, err error) {
 	self.streams = []*Stream{}
 	for _, media := range medias {
 		stream := &Stream{Sdp: media, client: self}
-		stream.makeCodecData()
+		if err = stream.makeCodecData(); err != nil {
+			return
+		}
 		self.streams = append(self.streams, stream)
 		streams = append(streams, media)
 	}
@@ -806,7 +807,7 @@ func (self *Stream) makeCodecData() (err error) {
 				return
 			}
 		default:
-			log.Fatalln("Fix Format may be raw PCM 97", media.PayloadType, media.Type)
+			err = fmt.Errorf("Fix Format may be raw PCM 97: %v, %v", media.PayloadType, media.Type)
 		}
 	} else {
 		switch media.PayloadType {
@@ -888,7 +889,7 @@ func (self *Stream) handleH264Payload(timestamp uint32, packet []byte) (err erro
 		}
 		if len(self.sps) == 0 {
 			self.sps = packet
-			self.makeCodecData()
+			err = self.makeCodecData()
 		} else if bytes.Compare(self.sps, packet) != 0 {
 			self.spsChanged = true
 			self.sps = packet
@@ -903,7 +904,7 @@ func (self *Stream) handleH264Payload(timestamp uint32, packet []byte) (err erro
 		}
 		if len(self.pps) == 0 {
 			self.pps = packet
-			self.makeCodecData()
+			err = self.makeCodecData()
 		} else if bytes.Compare(self.pps, packet) != 0 {
 			self.ppsChanged = true
 			self.pps = packet
